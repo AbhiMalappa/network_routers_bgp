@@ -12,9 +12,7 @@ explicit decision: platform/tier/router_type/network_type stay one-hot
 encoded same as the pre-existing pipeline; only the SNOW columns
 (haiku_root_cause/predictability/subcategory) are deferred to plain strings.
 
-Logic reused verbatim from the old build_features.py's build_splunk_key_pool/
-resolve_splunk_keys/merge_log_features/merge_platform/merge_router_network_type
--- same two-tier Splunk-key resolution (resolved device name first, a
+Same two-tier Splunk-key resolution (resolved device name first, a
 dns_names alias fallback only if exactly one alias matches), same NaN-vs-0
 discipline (devices with log coverage but no activity in a bucket get 0;
 devices with no log coverage or no resolvable Splunk key at all get NaN --

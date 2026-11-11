@@ -13,8 +13,7 @@ survival, LSTM, ...) decides what the target even looks like, and this
 pipeline's job ends at "every raw and derived feature a model could want."
 
 Three different secondary treatments, assigned deliberately per metric
-group (see docs/feature_reference.md for the original per-metric reasoning
-this carries forward):
+group:
 
   1. LEVEL_METRICS / SPREAD_STAT_METRICS (Dynatrace raw metrics, plus
      snow_ticket_count -- 2026-11-09, treated as a count-style level metric

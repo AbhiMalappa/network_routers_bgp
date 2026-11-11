@@ -3,10 +3,10 @@ BGP flap prediction — audit how much real Splunk log volume is being
 silently dropped by the exact (mnemonic, message_text) join in
 build_log_features.py, for mnemonics the project already partially keeps.
 
-Why this exists: pipeline_architecture.md already has a snippet to check for
-BRAND-NEW mnemonics (ones never seen in docs/log_message_text_to_feature_
-reference.csv at all) — that's the shallow case, and it's already handled.
-This catches the deeper, easier-to-miss case: a mnemonic that IS already
+Why this exists: a brand-new mnemonic (one never seen in docs/log_message_
+text_to_feature_reference.csv at all) is the shallow case -- a plain
+mnemonic-set diff against the reference file catches it, already handled
+elsewhere. This catches the deeper, easier-to-miss case: a mnemonic that IS already
 known and partially kept (e.g. ADJCHANGE, BFD_SESS_DESTROYED), where a real
 log line's EXACT message_text wording doesn't match any catalogued variant
 for that mnemonic. build_wide_features()'s inner join (build_log_features.py)
@@ -14,8 +14,7 @@ drops that row silently — same failure mode as an unseen mnemonic, but
 invisible to a mnemonic-only diff.
 
 Found and fixed once already (2026-09-30): confirmed via a device_flap_count
-cross-validation (see docs/log_validation_findings.md and the conversation
-this script came from) that ADJCHANGE and BFD_SESS_DESTROYED were silently
+cross-validation that ADJCHANGE and BFD_SESS_DESTROYED were silently
 dropping 54.8% and 88.5% of their real events respectively — entirely
 different message-text wording (e.g. newer 10-Gig interface hardware
 phrasing a BFD teardown slightly differently than the catalogued variant),
@@ -28,8 +27,9 @@ What it does NOT catch:
     confirmed noise). Only "partially kept" mnemonics (at least one non-
     dropped row) are in scope here; a 100% drop rate for a fully-dropped
     mnemonic is correct, not a gap.
-  - Brand-new mnemonics never seen in the reference file at all — see the
-    existing snippet in docs/pipeline_architecture.md Section 3b for that.
+  - Brand-new mnemonics never seen in the reference file at all — a plain
+    mnemonic-set diff against the reference file catches that case, not
+    this script.
   - Message-text TRUNCATION specifically (the SPL-side root cause of some of
     these gaps, see docs/spl_to_get_log_data.txt's 2026-09-30 fix) — this
     script reports the symptom (dropped volume), not that specific cause.

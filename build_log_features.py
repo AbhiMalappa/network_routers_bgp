@@ -24,12 +24,13 @@ Three outputs:
   - data/processed/log_features_wide.parquet: (device, time) grain, one
     column per feature. Only contains rows where the device actually had
     log activity in that bucket — does NOT cover the full DQL device/time
-    grid. That join happens in build_features.py.
+    grid. That join happens in combine_with_splunk.py.
   - data/processed/log_device_coverage.csv: which devices have ANY log
     visibility at all (union of the authoritative device list and devices
-    observed with real events — see docs/log_validation_findings.md
-    Section 1 for why the union, not just the device list, is used). This
-    is what lets build_features.py distinguish "confirmed zero activity"
+    observed with real events -- the union, not just the device list, is
+    used so a device logging real activity isn't missed just because it's
+    absent from the device list itself). This
+    is what lets downstream feature-building distinguish "confirmed zero activity"
     (fill 0) from "no visibility into this device" (leave NaN) when it
     joins this table onto the full DQL grid.
   - data/processed/log_device_platform.csv: device -> hardware platform
@@ -47,7 +48,7 @@ volume). `build_device_platform()` below reads that file directly instead
 of `logs`. Top-N-by-frequency-plus-"Others" binning for the one-hot
 `platform_*` features (previously done server-side by Splunk's
 `top limit=10 ... useother=true`) also moved — it's now done in
-`build_features.py`'s `merge_platform()`, AFTER joining onto the actual
+`combine_with_splunk.py`'s `merge_platform()`, AFTER joining onto the actual
 modeled device population, so "top N" reflects devices really in the
 feature table rather than a Splunk-wide count decided before anyone knew
 which devices would end up there. This file stores the raw, unbinned
@@ -133,7 +134,7 @@ def build_device_platform() -> pd.DataFrame:
     hostname only when fqdn is missing (331 of 3,757 rows) — both are
     lowercased directly rather than run through normalize_device() here,
     since that function lives in build_device_coverage.py and this file
-    doesn't otherwise depend on it; build_features.py's merge_platform()
+    doesn't otherwise depend on it; combine_with_splunk.py's merge_platform()
     re-normalizes this output the same way it does every other Splunk-side
     table, so nothing is lost by keeping this step simple.
 
@@ -170,8 +171,7 @@ if __name__ == "__main__":
     expected_cols = set(ref.loc[ref["category"] != "dropped", "feature_col_name"].unique())
     # 2026-09-22: expanded from 31 to 59 base feature columns after an
     # exhaustive re-triage of all 526 mnemonics found in a full-index
-    # message inventory (data/raw/all_message_text.csv) — see
-    # docs/log_mnemonic_triage.md for the full reasoning per new column.
+    # message inventory (data/raw/all_message_text.csv).
     assert len(expected_cols) == 59, f"Expected 59 feature columns in reference file, found {len(expected_cols)}"
 
     wide = build_wide_features(logs, ref, expected_cols)

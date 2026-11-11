@@ -8,9 +8,9 @@ Timestamps carry an explicit +0000 offset in the source (true, unambiguous
 UTC — nothing to infer here, unlike the DQL data).
 
 Bucket width is 4h, confirmed by inspection (timestamps only ever land on
-UTC hours 0, 4, 8, 12, 16, 20) — same width and, per
-docs/bgp_flap_modeling_handoff.md, the same alignment as the dql_utc data,
-so the two can be joined on (device, time) directly with no re-bucketing.
+UTC hours 0, 4, 8, 12, 16, 20) — same width and alignment as the Dynatrace
+data, so the two can be joined on (device, time) directly with no
+re-bucketing.
 
 Caution baked into this cleaning step, not left for downstream code to
 rediscover: several mnemonics that look BGP-related by name are not.

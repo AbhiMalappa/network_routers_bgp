@@ -10,8 +10,7 @@ status, traffic/discard volatility, optical power, optical bias current,
 optical module + chassis temperature, fan state, a device-level temperature
 sensor, fan tray status, FRU power status, power supply status — alongside
 the same device_health/interface/bgp signals the old CSV pull provided.
-device_metadata stays a separate CSV, unchanged. See
-docs/pipeline_architecture.md for the full diagram.
+device_metadata stays a separate CSV, unchanged.
 
 Verified before writing this (see the conversation this came from):
   - Same device universe as the old CSV pull: entity IDs
@@ -28,9 +27,9 @@ Verified before writing this (see the conversation this came from):
     is still applied to every non-key column as a defensive no-op (matches
     dtype already, pd.to_numeric is a cheap pass-through), not because it's
     known to be needed on this source — kept in case a future pull regresses.
-  - avg_hsrp_group (present in the old device_health pull, documented in
-    docs/feature_reference.md) does not exist in the new query_1 schema.
-    Confirmed before dropping it silently: zero-variance in the old data
+  - avg_hsrp_group (present in the old device_health pull) does not exist
+    in the new query_1 schema. Confirmed before dropping it silently:
+    zero-variance in the old data
     (std=0.0, always 1.0 wherever populated) — real dead signal, not the
     loss of anything a model could have used.
 
@@ -77,20 +76,23 @@ Pipeline:
      coverage looks normal around it — unlike flat_cpu_device, where the
      SAME check (zero-variance) correlates with the device barely reporting
      anything at all (7.5% BGP coverage vs. 69% fleet-wide, 93% also have a
-     frozen memory reading). That's why flat_cpu_device still drops the
-     device's entire row (see build_features.py) while these four instead
-     get a narrower, TIME-SCOPED fix: find_stuck_runs() below detects each
+     frozen memory reading). That's why flat_cpu_device is left as a
+     row-level flag rather than fixed in place -- this pipeline doesn't drop
+     rows; any row-filtering is a model-specific decision downstream -- while
+     these four instead get a narrower, TIME-SCOPED fix: find_stuck_runs()
+     below detects each
      qualifying run (>= STUCK_RUN_MIN_BUCKETS identical, non-zero, real
      readings, consecutive on the device's own dense grid, bridging gaps of
      up to GAP_TOLERANCE_BUCKETS) and nulls ONLY that metric's value for
      ONLY those rows — not the row, not the device, not any other column.
      Everything downstream (trend/z-score/volatility secondary features,
-     built from these same raw columns in build_features.py) automatically
+     built from these same raw columns in build_secondary_features.py)
+     automatically
      comes out NaN for the nulled window via the existing gap-tolerant
      rolling logic, no separate handling needed there. A `{metric}_
      stuck_reading` boolean marks which rows were nulled, for auditability —
-     dropped before the final feature table the same way flat_cpu_device/
-     chronic_flap_window/restart_co_occurring_flap are (see build_features.py).
+     kept in the final feature table as an ordinary column, same as
+     flat_cpu_device/chronic_flap_window/restart_co_occurring_flap.
      Zero-valued readings are treated as "uninformative" for this check (same
      as NaN) rather than as part of a stuck run, since 0 is a plausible real
      state for all four (laser off, ambient-matched temp, etc.) and nulling a
@@ -110,9 +112,9 @@ Pipeline:
      inherit the same corruption directly from power_worst_dBm. power_best_
      dBm and power_avg_dBm checked and left alone — they don't exhibit this
      (a single bad sample drags down a "worst"/min aggregate but not a
-     best/avg one). `{col}_out_of_range` flags are diagnostic-only, dropped
-     before the final feature table same as the `_stuck_reading` flags
-     (see build_features.py).
+     best/avg one). `{col}_out_of_range` flags are diagnostic-only, kept in
+     the final feature table as ordinary columns, same as the
+     `_stuck_reading` flags.
 
 NaN-safety notes carried over unchanged from the prior version of this
 script (still apply, source format doesn't affect them):
@@ -160,11 +162,11 @@ BUCKET_HOURS = 4
 CHRONIC_FLAP_THRESHOLD = 16  # full 4h window: every 15-min check flagged
 
 # Stuck-reading detection (see docstring point 8). GAP_TOLERANCE_BUCKETS is
-# the same value/meaning as build_features.py's constant of the same name
-# (how many consecutive missing buckets still count as "the same window") —
-# duplicated rather than imported, matching this file's existing practice of
-# not cross-importing from build_features.py (BUCKET_HOURS is duplicated the
-# same way).
+# the same value/meaning as build_secondary_features.py's constant of the
+# same name (how many consecutive missing buckets still count as "the same
+# window") — duplicated rather than imported, matching this file's existing
+# practice of not cross-importing across pipeline stages (BUCKET_HOURS is
+# duplicated the same way).
 GAP_TOLERANCE_BUCKETS = 2
 STUCK_RUN_MIN_BUCKETS = 30  # 5 days at the 4h grid
 STUCK_VALUE_METRICS = ["bias_current_avg_mA", "power_avg_dBm", "module_temp_avg_C", "temp_value"]
@@ -239,8 +241,7 @@ def _load_query_2a() -> pd.DataFrame:
     errors_discards file were re-pulled in the split form and that combined
     file removed, specifically so this function wouldn't need an old-vs-new
     conditional) -- query_2a_i_traffic (ifcsTrafficIn_bps/Out_bps) and
-    query_2a_ii_errors_discards (interface error/discard aggregates, see
-    docs/dql_query_full_list/query_2a_ii_errors_discards.txt for the current
+    query_2a_ii_errors_discards (interface error/discard aggregates --
     per-interface worst/count/total schema). Outer-joined on (entity, time)
     rather than concatenated, since they're column halves of the same rows,
     not additional rows. Outer (not inner) in case either half is ever
@@ -524,8 +525,8 @@ def build() -> pd.DataFrame:
     # see docstring point 8. Unlike flat_cpu_device, this does NOT drop the
     # row/device: only the specific metric's value, for the specific rows
     # inside a qualifying stuck run, is nulled. The `_stuck_reading` flags
-    # are diagnostic-only (dropped before the final feature table, see
-    # build_features.py) — kept here for auditability of what got nulled.
+    # are diagnostic-only, kept as ordinary columns in the final feature
+    # table for auditability of what got nulled.
     stuck_masks = compute_stuck_reading_masks(
         merged, STUCK_VALUE_METRICS, GAP_TOLERANCE_BUCKETS, STUCK_RUN_MIN_BUCKETS
     )

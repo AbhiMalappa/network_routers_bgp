@@ -10,8 +10,7 @@ drift monitoring (which compares distributions over time, not individual
 readings) is not designed to catch either.
 
 Three checks:
-  1. Range sanity -- RANGE_BOUNDS below, drawn from physical/protocol limits
-     documented in docs/dql_query_full_list/*.txt and docs/feature_reference.md.
+  1. Range sanity -- RANGE_BOUNDS below, drawn from physical/protocol limits.
   2. Cross-column consistency -- CONSISTENCY_CHECKS below (e.g. min<=max,
      peers_with_data<=peer_count).
   3. Stuck-value detection -- longest run of an identical non-null, non-zero

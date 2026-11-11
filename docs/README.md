@@ -1,19 +1,11 @@
-# Network Device & BGP Telemetry — Data Pipeline
+# Data Pipeline
 
 A self-contained pipeline that turns raw Dynatrace, Splunk, and ServiceNow
-(SNOW) exports into one wide, model-agnostic tabular dataset: one row per
-network device per 4-hour time bucket, every feature this project has
-established, and **no target column**. The data covers device health
-(CPU, memory, uptime, reboots), interface/traffic/error counters, optical
-and hardware sensor readings (power, bias current, temperature, fan,
-power supply), BGP peer/session state, Splunk syslog event counts, and
-SNOW ticket enrichment — general-purpose network device telemetry, not
-built around one specific question. It's a reasonable starting point for
-BGP flap prediction, hardware failure prediction, or any other
-network-reliability question this data can speak to. What a model is
-trying to predict — and how — is a decision for a separate, model-specific
-step; this pipeline's job ends at "every raw and derived feature a model
-could want."
+(SNOW) exports into one wide tabular dataset: one row per network device
+per 4-hour time bucket, covering device health, interface/traffic,
+hardware sensor readings, BGP peer/session state, Splunk syslog event
+counts, and SNOW ticket enrichment. No target column, no row filtering,
+no train/test split.
 
 Everything this pipeline needs to run, and everything it produces, lives
 inside this folder (`data_pipeline/`). No path here reaches outside it,
@@ -234,47 +226,21 @@ Run the relevant QA script after any new raw pull lands — see Section 5.
 ## 4. Design decisions worth knowing before extending this
 
 - **No target, no row filtering, no train/test split.** Every row that
-  exists at Stage 1 still exists at Stage 6. A model-specific step,
-  separate from this pipeline, decides what the target looks like —
-  binary flap-in-next-24h, time-to-next-hardware-failure for a survival
-  model, a sequence for an LSTM, or something else entirely — and which
-  rows/columns that specific model should use.
-- **SNOW's `haiku_predictability` is a plain string, not a binary flag.**
-  It has five real categories (`Predictable`, `Not Predictable`, `Known in
-  Advance`, `Indeterminate`, `N/A (no real issue)`), plus `"No Ticket"` for
-  unmatched buckets. Collapsing this to binary is a modeling decision (which
-  labels count as "predictable" for a given use case) — keeping the full
-  category means any future model or filter can choose its own cutoff
-  without re-deriving anything.
-- **`haiku_root_cause`/`haiku_subcategory` are also plain strings, not
-  one-hot.** Same reasoning — deferred to modeling time, if and when
-  needed (e.g. training a root-cause-specific sub-model is easier off the
-  raw string than off a fixed set of dummy columns decided in advance).
+  exists at Stage 1 still exists at Stage 6.
+- **`haiku_predictability`, `haiku_root_cause`, `haiku_subcategory` are
+  plain strings, not one-hot or binary.**
 - **Platform/tier/router_type/network_type, by contrast, ARE one-hot
-  encoded here**, with top-10-by-device-count + "Others" binning for
-  platform specifically. This is a deliberate exception, not an
-  inconsistency: these are a small number of known, stable, low-
-  cardinality categories where encoding is required to represent the
-  concept "something that was not in the top 10," not a deferred choice.
-- **`device_flap_count` (and its close relatives `num_peers_flapped`,
-  `flap_concentration`) are ordinary feature columns here**, with
-  `prior_24h`/`_7d` lag but no target-based exclusion — there's no target
-  in this pipeline to leak into. Any model-specific step building a
-  forward-looking target off this data (flap-based, hardware-failure-based,
-  or otherwise) should consider whether a given current-state or
-  near-term-history column is too close to whatever it's trying to
-  predict, and exclude it (and its lags) from its own feature set if so —
-  that's a label-leakage judgment call for that step to make, not this
-  pipeline.
-- **NaN means "unknown," not "confirmed zero," and that distinction is
-  preserved everywhere it matters.** A device with no Splunk log coverage
-  at all gets `NaN` on every log-derived column, not `0` — `0` is reserved
-  for "this device has coverage and confirmed no activity." The same
-  discipline applies to the per-source `has_X_data` coverage features and
-  the platform/tier/router_type/network_type `*_known` flags. Every
+  encoded**, with top-10-by-device-count + "Others" binning for platform.
+- **`device_flap_count`, `num_peers_flapped`, `flap_concentration` are
+  ordinary feature columns**, with `prior_24h`/`_7d` lag, no other
+  exclusion applied.
+- **NaN means "unknown," not "confirmed zero."** A device with no Splunk
+  log coverage at all gets `NaN` on every log-derived column, not `0` —
+  `0` is reserved for confirmed-present-but-zero-activity. Same discipline
+  for the per-source `has_X_data` coverage features and the
+  platform/tier/router_type/network_type `*_known` flags. Every
   rolling/expanding window in Stage 6 uses a `min_periods` floor that
-  correctly propagates this: a window spanning genuinely missing data
-  produces `NaN`, not a silently-undercounted partial result.
+  propagates this correctly.
 
 ---
 

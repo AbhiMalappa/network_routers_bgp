@@ -1,11 +1,19 @@
-# BGP Flap Prediction — Data Pipeline
+# Network Device & BGP Telemetry — Data Pipeline
 
 A self-contained pipeline that turns raw Dynatrace, Splunk, and ServiceNow
 (SNOW) exports into one wide, model-agnostic tabular dataset: one row per
 network device per 4-hour time bucket, every feature this project has
-established, and **no target column**. What a model is trying to predict —
-and how — is a decision for a separate, model-specific step; this pipeline's
-job ends at "every raw and derived feature a model could want."
+established, and **no target column**. The data covers device health
+(CPU, memory, uptime, reboots), interface/traffic/error counters, optical
+and hardware sensor readings (power, bias current, temperature, fan,
+power supply), BGP peer/session state, Splunk syslog event counts, and
+SNOW ticket enrichment — general-purpose network device telemetry, not
+built around one specific question. It's a reasonable starting point for
+BGP flap prediction, hardware failure prediction, or any other
+network-reliability question this data can speak to. What a model is
+trying to predict — and how — is a decision for a separate, model-specific
+step; this pipeline's job ends at "every raw and derived feature a model
+could want."
 
 Everything this pipeline needs to run, and everything it produces, lives
 inside this folder (`data_pipeline/`). No path here reaches outside it,
@@ -140,8 +148,8 @@ classification was kept, so a collision is auditable, not silently hidden.
 Most rows will have no match at all — only a minority of SNOW tickets
 resolve to a known fleet device (`cmdb_ci` is often blank, a non-device
 value, or a device outside the modeled fleet). This is expected: it's a
-left join against the sparse subset of flaps that got escalated to a
-ticket, not a comprehensive SNOW enrichment of every bucket.
+left join against the sparse subset of real-world incidents that got
+escalated to a ticket, not a comprehensive SNOW enrichment of every bucket.
 
 **Output:** `processed/dynatrace_snow_combined.parquet`.
 
@@ -227,9 +235,10 @@ Run the relevant QA script after any new raw pull lands — see Section 5.
 
 - **No target, no row filtering, no train/test split.** Every row that
   exists at Stage 1 still exists at Stage 6. A model-specific step,
-  separate from this pipeline, decides what the target looks like (binary
-  flap-in-next-24h, time-to-next-flap for a survival model, a sequence for
-  an LSTM, ...) and which rows/columns that specific model should use.
+  separate from this pipeline, decides what the target looks like —
+  binary flap-in-next-24h, time-to-next-hardware-failure for a survival
+  model, a sequence for an LSTM, or something else entirely — and which
+  rows/columns that specific model should use.
 - **SNOW's `haiku_predictability` is a plain string, not a binary flag.**
   It has five real categories (`Predictable`, `Not Predictable`, `Known in
   Advance`, `Indeterminate`, `N/A (no real issue)`), plus `"No Ticket"` for
@@ -250,12 +259,13 @@ Run the relevant QA script after any new raw pull lands — see Section 5.
 - **`device_flap_count` (and its close relatives `num_peers_flapped`,
   `flap_concentration`) are ordinary feature columns here**, with
   `prior_24h`/`_7d` lag but no target-based exclusion — there's no target
-  in this pipeline to leak into. A model-specific step building a
-  forward-looking flap target will very likely need to exclude these (and
-  their lags) from its own feature set, for the same label-leakage reason
-  this project's training code has historically excluded them for every
-  target except the same-window confirmation label. That decision belongs
-  to that step, not to this pipeline.
+  in this pipeline to leak into. Any model-specific step building a
+  forward-looking target off this data (flap-based, hardware-failure-based,
+  or otherwise) should consider whether a given current-state or
+  near-term-history column is too close to whatever it's trying to
+  predict, and exclude it (and its lags) from its own feature set if so —
+  that's a label-leakage judgment call for that step to make, not this
+  pipeline.
 - **NaN means "unknown," not "confirmed zero," and that distinction is
   preserved everywhere it matters.** A device with no Splunk log coverage
   at all gets `NaN` on every log-derived column, not `0` — `0` is reserved

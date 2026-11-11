@@ -107,6 +107,7 @@ import pandas as pd
 # 2026-11-10: raw/processed moved to data_pipeline/raw, data_pipeline/
 # processed (self-contained pipeline, no project-level data/ dependency).
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 DQL_PATH = os.path.join(PIPELINE_DIR, "processed", "cleaned_device_level_data.parquet")
 # 2026-09-02: all_dynatrace_reporting_device.csv was retired — dql_device_
 # metadata.csv (built alongside every Dynatrace pull now) is the current
@@ -158,9 +159,13 @@ def normalize_device(name: str) -> str:
 
 
 def load_snow_device_counts() -> pd.Series:
-    files = sorted(glob.glob(os.path.join(SNOW_RAW_DIR, "incident*.csv")))
+    # 2026-11-11: SNOW export filename convention moved from incident*.csv
+    # to snow_bgp_pst_*.csv some time ago; this glob was never updated to
+    # match, so this function had been silently unusable. Same cmdb_ci
+    # column in both formats, so no other change needed.
+    files = sorted(glob.glob(os.path.join(SNOW_RAW_DIR, "snow_bgp_pst_*.csv")))
     if not files:
-        raise FileNotFoundError(f"No incident*.csv files found in {SNOW_RAW_DIR}")
+        raise FileNotFoundError(f"No snow_bgp_pst_*.csv files found in {SNOW_RAW_DIR}")
     dfs = [pd.read_csv(f, encoding="cp1252", on_bad_lines="warn", low_memory=False, usecols=["cmdb_ci"])
            for f in files]
     snow = pd.concat(dfs, ignore_index=True)

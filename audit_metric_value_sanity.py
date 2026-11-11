@@ -33,6 +33,7 @@ import pandas as pd
 # paths -- the old relative strings only worked when run from the project
 # root as cwd.
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 DEFAULT_INPUT = os.path.join(PIPELINE_DIR, "processed", "cleaned_device_level_data.parquet")
 DEFAULT_OUT_PREFIX = os.path.join(PIPELINE_DIR, "processed", "metric_value_sanity")
 ENTITY_COL = "dt.entity.network:device"

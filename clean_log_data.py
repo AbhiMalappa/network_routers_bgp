@@ -56,6 +56,7 @@ import pandas as pd
 # 2026-11-10: raw/processed moved to data_pipeline/raw, data_pipeline/
 # processed (self-contained pipeline).
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 RAW_DIR = os.path.join(PIPELINE_DIR, "raw", "logs")
 OUT_PATH = os.path.join(PIPELINE_DIR, "processed", "cleaned_log_data.parquet")
 

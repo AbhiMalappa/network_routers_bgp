@@ -29,6 +29,7 @@ import pandas as pd
 # processed -- the old relative strings only worked when run from the
 # project root as cwd.
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 RAW_PARQUET_DIR = os.path.join(PIPELINE_DIR, "raw", "dql", "parquet")
 DEFAULT_OUT = os.path.join(PIPELINE_DIR, "processed", "dql_coverage_gaps.csv")
 

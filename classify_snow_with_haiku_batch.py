@@ -72,6 +72,7 @@ EXCLUDED_NON_BGP_TICKETS = {"INC27756341", "INC27596789", "INC27271931"}
 # 2026-11-10: raw/processed moved to data_pipeline/raw, data_pipeline/
 # processed (self-contained pipeline).
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 RAW_SNOW_DIR = os.path.join(PIPELINE_DIR, "raw", "snow")
 PROCESSED_DIR = os.path.join(PIPELINE_DIR, "processed")
 

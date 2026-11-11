@@ -149,6 +149,7 @@ from build_device_coverage import normalize_device  # noqa: E402
 # data/ folder, so this pipeline can run standalone with no dependency on
 # anything outside this directory.
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 RAW_DIR = os.path.join(PIPELINE_DIR, "raw", "dql")
 RAW_PARQUET_DIR = os.path.join(RAW_DIR, "parquet")
 OUT_PATH = os.path.join(PIPELINE_DIR, "processed", "cleaned_device_level_data.parquet")

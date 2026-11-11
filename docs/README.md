@@ -8,9 +8,7 @@ counts, and SNOW ticket enrichment. No target column, no row filtering,
 no train/test split.
 
 Everything this pipeline needs to run, and everything it produces, lives
-inside this folder (`data_pipeline/`). No path here reaches outside it,
-except to read `docs/log_message_text_to_feature_reference.csv` — a
-curated reference file maintained at the project root, not pipeline data.
+inside this folder (`data_pipeline/`). No path here reaches outside it.
 
 ---
 
@@ -42,6 +40,12 @@ data_pipeline/
 │   ├── dynatrace_snow_splunk_combined.parquet
 │   ├── bgp_combined_data_table.parquet   <- the final deliverable
 │   └── (QA script outputs — see Section 5)
+│
+├── docs/                                  documentation + curated reference
+│   ├── README.md                         this file
+│   ├── log_message_text_to_feature_reference.csv  Stage 2/6 dependency, see below
+│   ├── spl_to_get_log_data.txt            SPL used to produce raw/logs/splunk_logs_utc_*.csv
+│   └── data_pipeline_overview.pptx
 │
 ├── build_and_clean_dynatrace_device_data.py
 ├── clean_log_data.py

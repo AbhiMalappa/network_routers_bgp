@@ -51,12 +51,13 @@ import os
 
 import pandas as pd
 
-# 2026-11-10: moved into data_pipeline/ (QA tool for this pipeline's own
-# stage-2 output). docs/ stays at the project root.
+# 2026-11-11: moved into data_pipeline/ (QA tool for this pipeline's own
+# stage-2 output). raw/processed/docs all live inside data_pipeline/ --
+# fully self-contained, no path here reaches outside this folder.
 PIPELINE_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.join(PIPELINE_DIR, "..")
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 LOG_PATH = os.path.join(PIPELINE_DIR, "processed", "cleaned_log_data.parquet")
-REF_PATH = os.path.join(ROOT_DIR, "docs", "log_message_text_to_feature_reference.csv")
+REF_PATH = os.path.join(PIPELINE_DIR, "docs", "log_message_text_to_feature_reference.csv")
 OUT_PATH = os.path.join(PIPELINE_DIR, "processed", "log_message_text_coverage_gaps.csv")
 
 

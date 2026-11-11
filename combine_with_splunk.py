@@ -44,6 +44,7 @@ from build_device_coverage import normalize_device  # noqa: E402
 # 2026-11-10: raw/processed moved to data_pipeline/raw, data_pipeline/
 # processed (self-contained pipeline).
 PIPELINE_DIR = os.path.dirname(__file__)
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 IN_PATH = os.path.join(PIPELINE_DIR, "processed", "dynatrace_snow_combined.parquet")
 LOG_FEATURES_PATH = os.path.join(PIPELINE_DIR, "processed", "log_features_wide.parquet")
 LOG_COVERAGE_PATH = os.path.join(PIPELINE_DIR, "processed", "log_device_coverage.csv")

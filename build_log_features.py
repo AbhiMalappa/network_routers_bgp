@@ -56,14 +56,12 @@ which devices would end up there. This file stores the raw, unbinned
 import os
 import pandas as pd
 
-# 2026-11-10: raw/processed moved to data_pipeline/raw, data_pipeline/
-# processed (self-contained pipeline). docs/ stays at the project root --
-# it's curated reference material, not pipeline data -- so this is the
-# one path here that still needs ROOT_DIR.
+# 2026-11-11: raw/processed/docs all live inside data_pipeline/ -- fully
+# self-contained, no path here reaches outside this folder.
 PIPELINE_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.join(PIPELINE_DIR, "..")
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 LOG_PATH = os.path.join(PIPELINE_DIR, "processed", "cleaned_log_data.parquet")
-REF_PATH = os.path.join(ROOT_DIR, "docs", "log_message_text_to_feature_reference.csv")
+REF_PATH = os.path.join(PIPELINE_DIR, "docs", "log_message_text_to_feature_reference.csv")
 COVERAGE_LIST_PATH = os.path.join(PIPELINE_DIR, "raw", "loging_devcies.csv")
 METADATA_PATH = os.path.join(PIPELINE_DIR, "raw", "logs", "network_device_metadata.csv")
 

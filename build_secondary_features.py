@@ -66,12 +66,12 @@ import os
 
 import pandas as pd
 
-# 2026-11-10: raw/processed moved to data_pipeline/raw, data_pipeline/
-# processed (self-contained pipeline). docs/ stays at the project root.
+# 2026-11-11: raw/processed/docs all live inside data_pipeline/ -- fully
+# self-contained, no path here reaches outside this folder.
 PIPELINE_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.join(PIPELINE_DIR, "..")
+os.makedirs(os.path.join(PIPELINE_DIR, "processed"), exist_ok=True)
 IN_PATH = os.path.join(PIPELINE_DIR, "processed", "dynatrace_snow_splunk_combined.parquet")
-LOG_REF_PATH = os.path.join(ROOT_DIR, "docs", "log_message_text_to_feature_reference.csv")
+LOG_REF_PATH = os.path.join(PIPELINE_DIR, "docs", "log_message_text_to_feature_reference.csv")
 OUT_PATH = os.path.join(PIPELINE_DIR, "processed", "bgp_combined_data_table.parquet")
 
 ENTITY_COL = "dt.entity.network:device"

@@ -1,0 +1,28 @@
+``` change preference to UTC and then run this ```
+
+index="pdm_network_summary_idx" source="ciscoios_srctype" NOT(mnemonic="*ssh*") NOT(mnemonic="DIALPEER_STATUS") NOT (mnemonic="VPM_BUSYOUT")  NOT (mnemonic="NOVALIDKEY") NOT (mnemonic="INVALIDKEY")  NOT (mnemonic="AUTH_PASSED")
+| bin _time span=4h
+
+| lookup pdm_network_device_metadata fqdn as orig_host OUTPUT deviceClass deviceModelName
+| where isnull(deviceClass) OR deviceClass="" OR match(deviceClass, "^\s*$") OR  like(lower(deviceClass), "%router%")
+
+| cleantext textfield=message_text keep_orig=True mv=False remove_stopwords=False
+
+| eval message_text=replace(message_text, "\b\w{1,2}\b\s*", "") ``` remove 1 or 2 char words ```
+| eval message_text=replace(message_text,"\s+", " ") ```spaces```
+| eval message_text = substr(message_text,0,120)
+| eval message_text = trim(message_text)
+``` trim added 2026-09-30: substr cuts at a fixed character position and can
+land right after a space, leaving a trailing space substr itself never
+removes (it's a single space, not a "run" the \s+ replace above would
+touch). This exact artifact broke exact-match message_text lookups during
+the triage this fix came from -- 'neighbor ' and 'dsp slot changed state '
+both carried a hidden trailing space that made them silently fail to match
+anything, including themselves when re-typed by hand. Trimming after the
+cut, not before, is the only position that actually guards against it. ```
+
+| stats sum(count) as log_count by _time mnemonic trap_msg message_text orig_host
+
+``` Device platform/tier (deviceModelName, deviceTier, site codes, etc.) is
+not pulled here — it comes from a separate export, network_device_metadata.csv,
+joined in downstream by hostname. See docs/feature_reference.md. ```

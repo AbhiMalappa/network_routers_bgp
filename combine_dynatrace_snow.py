@@ -99,7 +99,11 @@ def load_snow_per_bucket() -> pd.DataFrame:
             f"UTC patch to this file."
         )
 
-    snow = snow[snow["haiku_root_cause"] != "EXCLUDED_NON_BGP"].copy()
+    # Neither sentinel is a real classification -- excluded from matching
+    # entirely (same as a bucket with no ticket at all) rather than being
+    # eligible to win a bucket collision against a genuinely classified
+    # ticket, or surfacing as a fake "root cause" on an otherwise-real row.
+    snow = snow[~snow["haiku_root_cause"].isin(["EXCLUDED_NON_BGP", "ERROR_NO_RESULT"])].copy()
     snow["_key"] = snow["cmdb_ci"].map(normalize_device)
     snow["opened_at_utc"] = pd.to_datetime(snow["opened_at_utc"], utc=True)
     snow["time_utc"] = snow["opened_at_utc"].dt.floor(f"{BUCKET_HOURS}h")

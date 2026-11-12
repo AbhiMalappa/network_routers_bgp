@@ -46,7 +46,7 @@ RANGE_BOUNDS = {
     "ifcsTrafficIn_bps": (0, None),
     "ifcsTrafficOut_bps": (0, None),
     "total_interface_errors": (0, None),
-    "total_discards": (0, None),
+    "total_interface_discards": (0, None),
     "interfaces_with_data": (0, None),
     "abnormal_interface_count": (0, None),
     "traffic_in_min_in_bin": (0, None),

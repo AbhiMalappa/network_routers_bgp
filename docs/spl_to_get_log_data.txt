@@ -25,4 +25,4 @@ cut, not before, is the only position that actually guards against it. ```
 
 ``` Device platform/tier (deviceModelName, deviceTier, site codes, etc.) is
 not pulled here — it comes from a separate export, network_device_metadata.csv,
-joined in downstream by hostname. See docs/feature_reference.md. ```
+joined in downstream by hostname. ```

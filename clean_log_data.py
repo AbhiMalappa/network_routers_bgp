@@ -115,7 +115,14 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     # strip() closes at the source, for every month, past and future.
     df["message_text"] = df["message_text"].astype(str).str.strip()
 
-    df["time_utc"] = pd.to_datetime(df["_time"]).dt.tz_convert("UTC")
+    # utc=True (not .dt.tz_convert after the fact): a 2026-11 raw pull
+    # introduced mixed UTC offsets within the SAME file (+0100 vs +0000,
+    # a DST transition late in the month) -- pandas returns an object-dtype
+    # result for a plain to_datetime() in that case, which has no .dt
+    # accessor at all. Safe either way: each row's offset is explicit in
+    # the string, so utc=True converts every row correctly regardless of
+    # which offset it happens to carry.
+    df["time_utc"] = pd.to_datetime(df["_time"], utc=True)
     df = df.drop(columns=["_time"])
     df = df.rename(columns={"orig_host": "sys.name"})
 

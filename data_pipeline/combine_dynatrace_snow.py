@@ -42,7 +42,8 @@ enrichment of every bucket -- it's exactly the subset that got escalated to
 a ticket and resolved to a known device.
 
 Input: data/processed/cleaned_device_level_data.parquet,
-       data/processed/snow_bgp_pst_*_with_haiku.csv (most recently modified)
+       data/processed/snow_with_haiku.csv (falls back to the older
+       snow_bgp_pst_*_with_haiku.csv naming if that doesn't exist yet)
 Output: data/processed/dynatrace_snow_combined.parquet
 """
 import glob
@@ -69,17 +70,29 @@ NO_TICKET = "No Ticket"
 
 
 def _resolve_snow_csv() -> str:
+    """Prefers the stable snow_with_haiku.csv (2026-11-12+ --
+    classify_snow_with_haiku_incremental.py's output, kept current as new
+    raw pulls land) over the older stem-derived {input_stem}_with_haiku.csv
+    naming (classify_snow_with_haiku_batch.py's output before that script
+    switched to the same stable filename) -- falls back to the old pattern
+    only if the stable file doesn't exist yet, e.g. a from-scratch project
+    checkout that hasn't run either classify script."""
+    stable_path = os.path.join(PIPELINE_DIR, "processed", "snow_with_haiku.csv")
+    if os.path.exists(stable_path):
+        return stable_path
+
     pattern = os.path.join(PIPELINE_DIR, "processed", "snow_bgp_pst_*_with_haiku.csv")
     files = sorted(glob.glob(pattern), key=os.path.getmtime)
     if not files:
         raise FileNotFoundError(
-            f"No snow_bgp_pst_*_with_haiku.csv found via {pattern} -- run "
-            f"classify_snow_with_haiku_batch.py (submit/status/collect) first."
+            f"Neither {stable_path} nor any snow_bgp_pst_*_with_haiku.csv found -- run "
+            f"classify_snow_with_haiku_batch.py or classify_snow_with_haiku_incremental.py "
+            f"(submit/status/collect) first."
         )
     chosen = files[-1]
     if len(files) > 1:
-        print(f"NOTE: {len(files)} snow_bgp_pst_*_with_haiku.csv files found; "
-              f"using the most recently modified: {os.path.basename(chosen)}")
+        print(f"NOTE: {len(files)} snow_bgp_pst_*_with_haiku.csv files found (no stable "
+              f"snow_with_haiku.csv yet); using the most recently modified: {os.path.basename(chosen)}")
     return chosen
 
 

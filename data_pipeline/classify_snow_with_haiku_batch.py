@@ -80,25 +80,20 @@ MODEL = "claude-haiku-4-5"
 COMMENTS_CHAR_CAP = 3000
 
 
-def _resolve_input_csv() -> str:
-    candidates = sorted(
-        glob.glob(os.path.join(RAW_SNOW_DIR, "snow_bgp_pst_*.csv")),
-        key=os.path.getmtime,
-    )
-    if not candidates:
-        raise FileNotFoundError(f"No snow_bgp_pst_*.csv found in {RAW_SNOW_DIR}")
-    chosen = candidates[-1]  # most recently modified
-    if len(candidates) > 1:
-        print(f"NOTE: {len(candidates)} snow_bgp_pst_*.csv files found in {RAW_SNOW_DIR}; "
-              f"using the most recently modified: {os.path.basename(chosen)}")
-    return chosen
-
-
-CSV_PATH = _resolve_input_csv()
-_STEM = os.path.basename(CSV_PATH).rsplit(".csv", 1)[0]
-BATCH_ID_FILE = os.path.join(PROCESSED_DIR, f"{_STEM}_last_batch_id.txt")
-OUT_CSV = os.path.join(PROCESSED_DIR, f"{_STEM}_with_haiku.csv")
-OUT_JSON = os.path.join(PROCESSED_DIR, f"{_STEM}_haiku_batch_results.json")
+# 2026-11-12: raw SNOW exports are no longer one ever-growing cumulative
+# file -- they're separate, non-overlapping date-range chunks (e.g.
+# snow_bgp_pst_06_1_10_1.csv for June-Sept, snow_bgp_pst_10_1_11_1.csv for
+# October, confirmed zero ticket-number overlap between them). Every
+# matching file is combined (see load_all_rows()) rather than picking only
+# the most-recently-modified one, which would silently see just one chunk.
+# Output is a fixed filename, not stem-derived from a single input file
+# for the same reason -- same file classify_snow_with_haiku_incremental.py
+# reads and updates going forward; this script is for a genuine
+# from-scratch rebuild of it (e.g. after a prompt/schema change), not the
+# normal day-to-day workflow.
+BATCH_ID_FILE = os.path.join(PROCESSED_DIR, "snow_with_haiku_last_batch_id.txt")
+OUT_CSV = os.path.join(PROCESSED_DIR, "snow_with_haiku.csv")
+OUT_JSON = os.path.join(PROCESSED_DIR, "snow_with_haiku_batch_results.json")
 
 ROOT_CAUSES = [
     "Carrier / Circuit Issue",
@@ -277,13 +272,34 @@ def load_all_rows():
     # this file, but would silently mangle any non-ASCII byte (smart
     # quotes, em-dashes -- both seen in real close_notes) into U+FFFD
     # rather than decode it correctly.
-    rows = []
-    with open(CSV_PATH, newline="", encoding="cp1252") as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames
-        for row in reader:
-            rows.append(row)
-    return rows, fieldnames
+    paths = sorted(glob.glob(os.path.join(RAW_SNOW_DIR, "snow_bgp_pst_*.csv")))
+    if not paths:
+        raise FileNotFoundError(f"No snow_bgp_pst_*.csv found in {RAW_SNOW_DIR}")
+
+    rows_by_number = {}
+    fieldnames = None
+    for path in paths:
+        with open(path, newline="", encoding="cp1252") as f:
+            reader = csv.DictReader(f)
+            if fieldnames is None:
+                fieldnames = reader.fieldnames
+            for row in reader:
+                number = row["number"]
+                existing = rows_by_number.get(number)
+                if existing is None:
+                    rows_by_number[number] = row
+                else:
+                    # Plain string comparison is NOT chronological for a
+                    # 12-hour AM/PM timestamp (e.g. "11:00:00 AM" sorts
+                    # after "01:00:00 PM" as a string) -- parse both before
+                    # comparing.
+                    new_ts = pd.to_datetime(row.get("sys_updated_on", ""), format="mixed", errors="coerce")
+                    old_ts = pd.to_datetime(existing.get("sys_updated_on", ""), format="mixed", errors="coerce")
+                    if pd.notna(new_ts) and (pd.isna(old_ts) or new_ts > old_ts):
+                        rows_by_number[number] = row
+    print(f"Raw pull: {len(paths)} file(s) ({', '.join(os.path.basename(p) for p in paths)}), "
+          f"{len(rows_by_number)} distinct tickets")
+    return list(rows_by_number.values()), fieldnames
 
 
 def cmd_submit(args):

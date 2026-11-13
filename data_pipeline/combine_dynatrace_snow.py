@@ -41,6 +41,17 @@ in the output will be "No Ticket" / 0. This is not a comprehensive SNOW
 enrichment of every bucket -- it's exactly the subset that got escalated to
 a ticket and resolved to a known device.
 
+cmdb_ci fallback (2026-11-12): a large share of tickets carry a non-device
+cmdb_ci (e.g. "Not found", "Circuits Data AT&T" -- the ticket was filed
+against the carrier circuit, not the router). Checked empirically: of these,
+~69% still name the real device in short_description (e.g. "NTWK:
+wcalbhr2.ntwk.kp.org - BGP Peer state Down..."). For any ticket whose
+cmdb_ci doesn't resolve to a device already in the Dynatrace fleet, we search
+short_description for a known fleet device name and use that instead. This
+can only ever match a device that's actually in the fleet, so it can't
+introduce a false match -- it just recovers device identity that was already
+in the ticket text but not in the CI field.
+
 Input: data/processed/cleaned_device_level_data.parquet,
        data/processed/snow_with_haiku.csv (falls back to the older
        snow_bgp_pst_*_with_haiku.csv naming if that doesn't exist yet)
@@ -48,6 +59,7 @@ Output: data/processed/dynatrace_snow_combined.parquet
 """
 import glob
 import os
+import re
 import sys
 
 import pandas as pd
@@ -96,7 +108,20 @@ def _resolve_snow_csv() -> str:
     return chosen
 
 
-def load_snow_per_bucket() -> pd.DataFrame:
+def _extract_device_from_text(known_keys: set) -> "re.Pattern":
+    """Regex matching any known fleet device key as a whole token (not
+    preceded/followed by another alnum char, so "ecobdcr4" matches inside
+    "ecobdcr4-AW714" but "xcaeqsr1" doesn't falsely match inside some longer
+    unrelated token). Longest keys first so a short key can't shadow a
+    longer one that starts with it."""
+    ordered = sorted(known_keys, key=len, reverse=True)
+    return re.compile(
+        r"(?<![a-z0-9])(" + "|".join(re.escape(k) for k in ordered) + r")(?![a-z0-9])",
+        re.IGNORECASE,
+    )
+
+
+def load_snow_per_bucket(known_device_keys: set) -> pd.DataFrame:
     """One row per (normalized device key, 4h bucket) that had >=1 matched
     SNOW ticket -- collisions already resolved per the module docstring's
     policy. Rows are NOT yet filtered to a fleet device here (that happens
@@ -118,6 +143,27 @@ def load_snow_per_bucket() -> pd.DataFrame:
     # ticket, or surfacing as a fake "root cause" on an otherwise-real row.
     snow = snow[~snow["haiku_root_cause"].isin(["EXCLUDED_NON_BGP", "ERROR_NO_RESULT"])].copy()
     snow["_key"] = snow["cmdb_ci"].map(normalize_device)
+
+    # cmdb_ci fallback: for tickets whose cmdb_ci didn't resolve to a device
+    # already in the fleet (null, a carrier/circuit label like "Not found"
+    # or "Circuits Data AT&T", or any other non-device text), try pulling a
+    # known device name out of short_description instead.
+    needs_fallback = ~snow["_key"].isin(known_device_keys)
+    if needs_fallback.any():
+        text_pattern = _extract_device_from_text(known_device_keys)
+
+        def from_text(desc):
+            if not isinstance(desc, str):
+                return None
+            m = text_pattern.search(desc)
+            return m.group(1).lower() if m else None
+
+        recovered = snow.loc[needs_fallback, "short_description"].map(from_text)
+        n_recovered = recovered.notna().sum()
+        snow.loc[needs_fallback, "_key"] = recovered.where(recovered.notna(), snow.loc[needs_fallback, "_key"])
+        print(f"cmdb_ci fallback: {needs_fallback.sum()} tickets had no fleet-device cmdb_ci; "
+              f"recovered a known device name from short_description for {n_recovered} of them.")
+
     snow["opened_at_utc"] = pd.to_datetime(snow["opened_at_utc"], utc=True)
     snow["time_utc"] = snow["opened_at_utc"].dt.floor(f"{BUCKET_HOURS}h")
     snow = snow.sort_values("opened_at_utc")
@@ -146,7 +192,8 @@ def main():
     dt = pd.read_parquet(DYNATRACE_PATH)
     dt["_key"] = dt[IDENTITY_COL].map(normalize_device)
 
-    snow_per_bucket = load_snow_per_bucket()
+    known_device_keys = set(dt["_key"].dropna().unique())
+    snow_per_bucket = load_snow_per_bucket(known_device_keys)
 
     out = dt.merge(snow_per_bucket, on=["_key", "time_utc"], how="left")
     out = out.drop(columns=["_key"])
